@@ -13,12 +13,14 @@ const ARTIFACTS_DIR = path.join(ROOT_DIR, "benchmark-artifacts");
 const PROJECTS = [
   {
     name: "GenerateSerializer",
-    projectPath: ".\\src\\Orleans.CodeGen.Benchmark.GenerateSerializer\\Orleans.CodeGen.Benchmark.GenerateSerializer.csproj",
+    projectPath:
+      ".\\src\\Orleans.CodeGen.Benchmark.GenerateSerializer\\Orleans.CodeGen.Benchmark.GenerateSerializer.csproj",
     binlogName: "GenerateSerializer.binlog",
   },
   {
     name: "Normal",
-    projectPath: ".\\src\\Orleans.CodeGen.Benchmark.Normal\\Orleans.CodeGen.Benchmark.Normal.csproj",
+    projectPath:
+      ".\\src\\Orleans.CodeGen.Benchmark.Normal\\Orleans.CodeGen.Benchmark.Normal.csproj",
     binlogName: "Normal.binlog",
   },
 ];
@@ -89,7 +91,7 @@ function commandToReportString(command, args) {
     return [executable, ...args.slice(0, cutoff)].join(" ");
   }
 
-  return executable;
+  return [executable, ...args].join(" ");
 }
 
 function runCommand(stepName, command, args) {
@@ -187,7 +189,10 @@ function parsePerformanceSection(lines, heading) {
 function parseBuildDetails(logText) {
   const lines = logText.split(/\r?\n/);
   const taskRows = parsePerformanceSection(lines, "Task Performance Summary");
-  const targetRows = parsePerformanceSection(lines, "Target Performance Summary");
+  const targetRows = parsePerformanceSection(
+    lines,
+    "Target Performance Summary",
+  );
   const warningCount = (logText.match(/\bwarning\b/gi) || []).length;
   const errorCount = (logText.match(/\berror\b/gi) || []).length;
 
@@ -212,7 +217,9 @@ function renderRowsTable(rows, nameColumn) {
   ];
 
   for (const row of topRows) {
-    tableLines.push(`| ${escapeMd(row.name)} | ${formatSec(row.timeMs)} | ${row.calls} |`);
+    tableLines.push(
+      `| ${escapeMd(row.name)} | ${formatSec(row.timeMs)} | ${row.calls} |`,
+    );
   }
 
   return `${tableLines.join("\n")}\n`;
@@ -284,7 +291,9 @@ function renderReport(report) {
   lines.push(`| Finished (UTC) | ${report.finishedAtUtc} |`);
   lines.push(`| Status | ${report.status} |`);
   lines.push(`| Total Duration (s) | ${formatSec(report.totalDurationMs)} |`);
-  lines.push(`| Report Path | ${escapeMd(normalizePathForReport(report.reportPath))} |`);
+  lines.push(
+    `| Report Path | ${escapeMd(normalizePathForReport(report.reportPath))} |`,
+  );
   lines.push("");
 
   lines.push("## Command Timing Summary");
@@ -310,8 +319,12 @@ function renderReport(report) {
     lines.push(`| Exit Code | ${build.exitCode} |`);
     lines.push(`| Warnings (log match count) | ${build.warningCount} |`);
     lines.push(`| Errors (log match count) | ${build.errorCount} |`);
-    lines.push(`| Performance Summary Parsed | ${build.parsedSummary ? "Yes" : "No"} |`);
-    lines.push(`| Binlog | ${escapeMd(normalizePathForReport(build.binlogPath))} |`);
+    lines.push(
+      `| Performance Summary Parsed | ${build.parsedSummary ? "Yes" : "No"} |`,
+    );
+    lines.push(
+      `| Binlog | ${escapeMd(normalizePathForReport(build.binlogPath))} |`,
+    );
     lines.push("");
 
     lines.push("#### Slowest Targets");
@@ -328,35 +341,58 @@ function renderReport(report) {
   lines.push("## Build Mode Comparison");
   lines.push("");
 
-  const generateSerializerBuild = report.builds.find((build) => build.projectName === "GenerateSerializer");
-  const normalBuild = report.builds.find((build) => build.projectName === "Normal");
+  const generateSerializerBuild = report.builds.find(
+    (build) => build.projectName === "GenerateSerializer",
+  );
+  const normalBuild = report.builds.find(
+    (build) => build.projectName === "Normal",
+  );
 
   if (!generateSerializerBuild || !normalBuild) {
-    lines.push("_Comparison requires both GenerateSerializer and Normal build results._");
+    lines.push(
+      "_Comparison requires both GenerateSerializer and Normal build results._",
+    );
     lines.push("");
   } else {
     lines.push("### Summary");
     lines.push("");
-    lines.push(renderBuildSummaryComparisonTable(generateSerializerBuild, normalBuild).trimEnd());
+    lines.push(
+      renderBuildSummaryComparisonTable(
+        generateSerializerBuild,
+        normalBuild,
+      ).trimEnd(),
+    );
     lines.push("");
 
-    const targetComparisonRows = buildSharedComparisonRows(generateSerializerBuild.targetRows, normalBuild.targetRows);
+    const targetComparisonRows = buildSharedComparisonRows(
+      generateSerializerBuild.targetRows,
+      normalBuild.targetRows,
+    );
     lines.push("### Shared Slowest Targets (name-matched)");
     lines.push("");
-    lines.push(renderSharedComparisonTable(targetComparisonRows, "Target").trimEnd());
+    lines.push(
+      renderSharedComparisonTable(targetComparisonRows, "Target").trimEnd(),
+    );
     lines.push("");
 
-    const taskComparisonRows = buildSharedComparisonRows(generateSerializerBuild.taskRows, normalBuild.taskRows);
+    const taskComparisonRows = buildSharedComparisonRows(
+      generateSerializerBuild.taskRows,
+      normalBuild.taskRows,
+    );
     lines.push("### Shared Slowest Tasks (name-matched)");
     lines.push("");
-    lines.push(renderSharedComparisonTable(taskComparisonRows, "Task").trimEnd());
+    lines.push(
+      renderSharedComparisonTable(taskComparisonRows, "Task").trimEnd(),
+    );
     lines.push("");
   }
 
   if (report.status !== "success") {
     lines.push("## Failure");
     lines.push("");
-    lines.push("The benchmark stopped at the first failed step. See command output above and generated binlogs for diagnostics.");
+    lines.push(
+      "The benchmark stopped at the first failed step. See command output above and generated binlogs for diagnostics.",
+    );
     lines.push("");
   }
 
@@ -369,7 +405,9 @@ async function ensureArtifactsDir() {
 }
 
 async function writeReport(reportPath, content) {
-  const fullPath = path.isAbsolute(reportPath) ? reportPath : path.join(ROOT_DIR, reportPath);
+  const fullPath = path.isAbsolute(reportPath)
+    ? reportPath
+    : path.join(ROOT_DIR, reportPath);
   const parent = path.dirname(fullPath);
   await fs.mkdir(parent, { recursive: true });
   await fs.writeFile(fullPath, content, "utf8");
@@ -398,7 +436,11 @@ async function main() {
     "orleans-codegen-benchmark",
   ];
 
-  const codegenResult = await runCommand("Code generation", process.execPath, codegenArgs);
+  const codegenResult = await runCommand(
+    "Code generation",
+    process.execPath,
+    codegenArgs,
+  );
   steps.push({
     ...codegenResult,
     status: codegenResult.exitCode === 0 ? "success" : "failed",
@@ -423,7 +465,11 @@ async function main() {
         `/bl:${binlogPath}`,
       ];
 
-      const buildResult = await runCommand(`${project.name} build`, "dotnet", buildArgs);
+      const buildResult = await runCommand(
+        `${project.name} build`,
+        "dotnet",
+        buildArgs,
+      );
       const buildStatus = buildResult.exitCode === 0 ? "success" : "failed";
 
       steps.push({
@@ -431,7 +477,9 @@ async function main() {
         status: buildStatus,
       });
 
-      const detail = parseBuildDetails(`${buildResult.stdout}\n${buildResult.stderr}`);
+      const detail = parseBuildDetails(
+        `${buildResult.stdout}\n${buildResult.stderr}`,
+      );
       builds.push({
         projectName: project.name,
         durationMs: buildResult.durationMs,
@@ -441,7 +489,7 @@ async function main() {
         parsedSummary: detail.parsedSummary,
         targetRows: detail.targetRows,
         taskRows: detail.taskRows,
-        binlogPath,
+        binlogPath: "." + binlogPath.substring(ROOT_DIR.length),
       });
 
       if (buildResult.exitCode !== 0) {
