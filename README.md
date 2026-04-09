@@ -1,2 +1,3 @@
 # OrleansCodeGenBenchmark
-benchmark for orleans code generator
+
+Benchmark for orleans code generator.
