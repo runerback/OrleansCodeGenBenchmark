@@ -7,7 +7,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 const ROOT_DIR = __dirname;
-const DEFAULT_REPORT_PATH = "benchmark-report.md";
+const DEFAULT_DTO_COUNT = 3000;
 const ARTIFACTS_DIR = path.join(ROOT_DIR, "benchmark-artifacts");
 
 const PROJECTS = [
@@ -23,21 +23,27 @@ const PROJECTS = [
       ".\\src\\Orleans.CodeGen.Benchmark.Normal\\Orleans.CodeGen.Benchmark.Normal.csproj",
     binlogName: "Normal.binlog",
   },
+  {
+    name: "CustomGenerateSerializer",
+    projectPath:
+      ".\\src\\Orleans.CodeGen.Benchmark.CustomGenerateSerializer\\Orleans.CodeGen.Benchmark.CustomGenerateSerializer.csproj",
+    binlogName: "CustomGenerateSerializer.binlog",
+  },
 ];
 
 function parseArgs(argv) {
   const options = {
-    reportPath: DEFAULT_REPORT_PATH,
+    count: DEFAULT_DTO_COUNT,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--report") {
-      const value = argv[++i];
-      if (!value) {
-        throw new Error("--report requires a path value.");
+    if (arg === "--count") {
+      const value = parseInt(argv[++i]);
+      if (!value || value <= 0) {
+        throw new Error("--count requires a positive number value.");
       }
-      options.reportPath = value;
+      options.count = value;
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -225,36 +231,46 @@ function renderRowsTable(rows, nameColumn) {
   return `${tableLines.join("\n")}\n`;
 }
 
-function buildSharedComparisonRows(leftRows, rightRows) {
-  const rightByName = new Map(rightRows.map((row) => [row.name, row]));
+function buildSharedComparisonRows(officialRows, normalRows, customRows) {
+  const normalByName = new Map(normalRows.map((row) => [row.name, row]));
+  const customByName = new Map(customRows.map((row) => [row.name, row]));
   const rows = [];
 
-  for (const left of leftRows) {
-    const right = rightByName.get(left.name);
-    if (!right) {
+  for (const official of officialRows) {
+    const normal = normalByName.get(official.name);
+    if (!normal) {
+      continue;
+    }
+    const custom = customByName.get(official.name);
+    if (!custom) {
       continue;
     }
 
     rows.push({
-      name: left.name,
-      leftTimeMs: left.timeMs,
-      rightTimeMs: right.timeMs,
-      deltaTimeMs: Math.abs(left.timeMs - right.timeMs),
-      leftCalls: left.calls,
-      rightCalls: right.calls,
+      name: official.name,
+      timeMs: [official.timeMs, normal.timeMs, custom.timeMs],
+      deltaTimeMs: [
+        Math.abs(official.timeMs - normal.timeMs),
+        Math.abs(official.timeMs - custom.timeMs),
+      ],
+      calls: [official.calls, normal.calls, custom.calls],
     });
   }
 
-  return rows.sort((a, b) => b.deltaTimeMs - a.deltaTimeMs);
+  return rows.sort((a, b) => b.deltaTimeMs[0] - a.deltaTimeMs[0]);
 }
 
-function renderBuildSummaryComparisonTable(leftBuild, rightBuild) {
+function renderBuildSummaryComparisonTable(
+  officialBuild,
+  normalBuild,
+  customBuild,
+) {
   const tableLines = [
-    "| Metric | GenerateSerializer | Normal | Delta |",
+    "| Metric | Official | Normal | Custom |",
     "| --- | ---: | ---: | ---: |",
-    `| Build Duration (s) | ${formatSec(leftBuild.durationMs)} | ${formatSec(rightBuild.durationMs)} | ${formatSec(Math.abs(leftBuild.durationMs - rightBuild.durationMs))} |`,
-    `| Warnings | ${leftBuild.warningCount} | ${rightBuild.warningCount} | ${Math.abs(leftBuild.warningCount - rightBuild.warningCount)} |`,
-    `| Errors | ${leftBuild.errorCount} | ${rightBuild.errorCount} | ${Math.abs(leftBuild.errorCount - rightBuild.errorCount)} |`,
+    `| Build Duration (s) | ${formatSec(officialBuild.durationMs)} | ${formatSec(normalBuild.durationMs)} | ${formatSec(customBuild.durationMs)} |`,
+    `| Warnings | ${officialBuild.warningCount} | ${normalBuild.warningCount} | ${customBuild.warningCount} |`,
+    `| Errors | ${officialBuild.errorCount} | ${normalBuild.errorCount} | ${customBuild.errorCount} |`,
   ];
 
   return `${tableLines.join("\n")}\n`;
@@ -266,22 +282,22 @@ function renderSharedComparisonTable(rows, nameColumn) {
   }
 
   const tableLines = [
-    `| ${nameColumn} | GenerateSerializer (s) | Normal (s) | Delta (s) | GenerateSerializer Calls | Normal Calls |`,
-    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    `| ${nameColumn} | Official (s) | Normal (s) | Custom (s) | Normal Delta (s) | Custom Delta (s) | Official Calls | Normal Calls | Custom Calls |`,
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
   ];
 
   for (const row of rows) {
     tableLines.push(
-      `| ${escapeMd(row.name)} | ${formatSec(row.leftTimeMs)} | ${formatSec(row.rightTimeMs)} | ${formatSec(row.deltaTimeMs)} | ${row.leftCalls} | ${row.rightCalls} |`,
+      `| ${escapeMd(row.name)} | ${formatSec(row.timeMs[0])} | ${formatSec(row.timeMs[1])} | ${formatSec(row.timeMs[2])} | ${formatSec(row.deltaTimeMs[0])}| ${formatSec(row.deltaTimeMs[1])} | ${row.calls[0]} | ${row.calls[1]} | ${row.calls[2]} |`,
     );
   }
 
   return `${tableLines.join("\n")}\n`;
 }
 
-function renderReport(report) {
+function renderReport(report, count) {
   const lines = [];
-  lines.push("# Benchmark Report");
+  lines.push(`# Benchmark Report (${count} DTOs)`);
   lines.push("");
   lines.push("## Run Metadata");
   lines.push("");
@@ -310,6 +326,7 @@ function renderReport(report) {
   lines.push("## Compile Detail Breakdown");
   lines.push("");
 
+  const topN = 5;
   for (const build of report.builds) {
     lines.push(`### ${build.projectName}`);
     lines.push("");
@@ -329,60 +346,80 @@ function renderReport(report) {
 
     lines.push("#### Slowest Targets");
     lines.push("");
-    lines.push(renderRowsTable(build.targetRows, "Target").trimEnd());
+    lines.push(
+      renderRowsTable(
+        build.targetRows.sort((a, b) => b.timeMs - a.timeMs).slice(0, topN),
+        "Target",
+      ).trimEnd(),
+    );
     lines.push("");
 
     lines.push("#### Slowest Tasks");
     lines.push("");
-    lines.push(renderRowsTable(build.taskRows, "Task").trimEnd());
+    lines.push(
+      renderRowsTable(
+        build.taskRows.sort((a, b) => b.timeMs - a.timeMs).slice(0, topN),
+        "Task",
+      ).trimEnd(),
+    );
     lines.push("");
   }
 
-  lines.push("## Build Mode Comparison");
+  lines.push(`## Build Mode Comparison (${count} DTOs)`);
   lines.push("");
 
-  const generateSerializerBuild = report.builds.find(
+  const officialBuild = report.builds.find(
     (build) => build.projectName === "GenerateSerializer",
   );
   const normalBuild = report.builds.find(
     (build) => build.projectName === "Normal",
   );
+  const customBuild = report.builds.find(
+    (build) => build.projectName === "CustomGenerateSerializer",
+  );
 
-  if (!generateSerializerBuild || !normalBuild) {
-    lines.push(
-      "_Comparison requires both GenerateSerializer and Normal build results._",
-    );
+  if (!officialBuild || !normalBuild || !customBuild) {
+    lines.push("_Comparison build results._");
     lines.push("");
   } else {
     lines.push("### Summary");
     lines.push("");
     lines.push(
       renderBuildSummaryComparisonTable(
-        generateSerializerBuild,
+        officialBuild,
         normalBuild,
+        customBuild,
       ).trimEnd(),
     );
     lines.push("");
 
     const targetComparisonRows = buildSharedComparisonRows(
-      generateSerializerBuild.targetRows,
+      officialBuild.targetRows,
       normalBuild.targetRows,
+      customBuild.targetRows,
     );
-    lines.push("### Shared Slowest Targets (name-matched)");
+    lines.push("### Shared Slowest Targets");
     lines.push("");
     lines.push(
-      renderSharedComparisonTable(targetComparisonRows, "Target").trimEnd(),
+      renderSharedComparisonTable(
+        targetComparisonRows.slice(0, topN),
+        "Target",
+      ).trimEnd(),
     );
     lines.push("");
 
     const taskComparisonRows = buildSharedComparisonRows(
-      generateSerializerBuild.taskRows,
+      officialBuild.taskRows,
       normalBuild.taskRows,
+      customBuild.taskRows,
     );
-    lines.push("### Shared Slowest Tasks (name-matched)");
+    lines.push("### Shared Slowest Tasks");
     lines.push("");
     lines.push(
-      renderSharedComparisonTable(taskComparisonRows, "Task").trimEnd(),
+      renderSharedComparisonTable(
+        taskComparisonRows.slice(0, topN),
+        "Task",
+      ).trimEnd(),
     );
     lines.push("");
   }
@@ -427,7 +464,7 @@ async function main() {
   const codegenArgs = [
     ".\\codegen.js",
     "--count",
-    "3000",
+    options.count,
     "--min-props",
     "100",
     "--max-props",
@@ -507,11 +544,11 @@ async function main() {
     status,
     steps,
     builds,
-    reportPath: options.reportPath,
+    reportPath: `.\\reports\\benchmark-report-${options.count}.md`,
   };
 
-  const reportContent = renderReport(report);
-  const finalReportPath = await writeReport(options.reportPath, reportContent);
+  const reportContent = renderReport(report, options.count);
+  const finalReportPath = await writeReport(report.reportPath, reportContent);
   console.log(`Benchmark report written to: ${finalReportPath}`);
 
   if (status !== "success") {

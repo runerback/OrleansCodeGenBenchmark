@@ -24,9 +24,23 @@ const TARGETS = [
     namespace: "Orleans.CodeGen.Benchmark.Normal.DTO",
     withAttributes: false,
   },
+  {
+    project: "Orleans.CodeGen.Benchmark.CustomGenerateSerializer",
+    namespace: "Orleans.CodeGen.Benchmark.CustomGenerateSerializer.DTO",
+    withAttributes: true,
+    withCustomAttributes: true,
+  },
 ];
 
-const VALUE_TYPES = ["int", "long", "bool", "double", "decimal", "Guid", "DateTime"];
+const VALUE_TYPES = [
+  "int",
+  "long",
+  "bool",
+  "double",
+  "decimal",
+  "Guid",
+  "DateTime",
+];
 const REF_TYPES = ["string"];
 const ALL_SCALAR_TYPES = [...VALUE_TYPES, ...REF_TYPES];
 
@@ -69,7 +83,9 @@ function parseArgs(argv) {
     throw new Error("--max-props must be >= --min-props.");
   }
   if (options.maxProps > 1000) {
-    throw new Error("--max-props is unexpectedly large. Refusing values > 1000.");
+    throw new Error(
+      "--max-props is unexpectedly large. Refusing values > 1000.",
+    );
   }
 
   return options;
@@ -133,7 +149,8 @@ function propertyName(index) {
 function choosePropertySchema(rng, dtoCount) {
   const kindRoll = rng();
   if (kindRoll < 0.34) {
-    const scalar = ALL_SCALAR_TYPES[randomIntInclusive(rng, 0, ALL_SCALAR_TYPES.length - 1)];
+    const scalar =
+      ALL_SCALAR_TYPES[randomIntInclusive(rng, 0, ALL_SCALAR_TYPES.length - 1)];
     return { kind: "scalar", typeName: scalar };
   }
   if (kindRoll < 0.67) {
@@ -147,7 +164,8 @@ function choosePropertySchema(rng, dtoCount) {
     return { kind: "list", typeName: `List<${elementDto}>` };
   }
 
-  const elementType = ALL_SCALAR_TYPES[randomIntInclusive(rng, 0, ALL_SCALAR_TYPES.length - 1)];
+  const elementType =
+    ALL_SCALAR_TYPES[randomIntInclusive(rng, 0, ALL_SCALAR_TYPES.length - 1)];
   return { kind: "list", typeName: `List<${elementType}>` };
 }
 
@@ -173,13 +191,27 @@ function buildPropertyLine(propertySchema, propertyIndex, withAttributes) {
   return lines.join("\n");
 }
 
-function renderDtoFile(dtoNameValue, namespaceValue, withAttributes, propertySchemas) {
+function renderDtoFile(
+  dtoNameValue,
+  namespaceValue,
+  withAttributes,
+  withCustomAttributes,
+  propertySchemas,
+) {
   const lines = [];
   lines.push("using System;");
   lines.push("using System.Collections.Generic;");
   if (withAttributes) {
     lines.push("using Orleans;");
     lines.push("using Orleans.Concurrency;");
+    if (!!withCustomAttributes) {
+      lines.push(
+        "using Orleans.CodeGen.Benchmark.CustomGenerateSerializer.CustomAttributes;",
+      );
+      lines.push(
+        "using Orleans.CodeGen.Benchmark.CustomGenerateSerializer.CustomSerializers;",
+      );
+    }
   }
   lines.push("");
   lines.push(`namespace ${namespaceValue};`);
@@ -187,8 +219,12 @@ function renderDtoFile(dtoNameValue, namespaceValue, withAttributes, propertySch
 
   if (withAttributes) {
     lines.push("[Serializable]");
-    lines.push("[Immutable]");
-    lines.push("[GenerateSerializer]");
+    if (!!withCustomAttributes) {
+      lines.push("[CustomGenerateSerializer]");
+    } else {
+      lines.push("[Immutable]");
+      lines.push("[GenerateSerializer]");
+    }
   }
   lines.push(`public sealed class ${dtoNameValue}`);
   lines.push("{");
@@ -224,7 +260,11 @@ async function generate(options) {
 
   for (let dtoIndex = 0; dtoIndex < options.dtoCount; dtoIndex += 1) {
     const className = dtoName(dtoIndex);
-    const propertyCount = randomIntInclusive(rng, options.minProps, options.maxProps);
+    const propertyCount = randomIntInclusive(
+      rng,
+      options.minProps,
+      options.maxProps,
+    );
     const propertySchemas = new Array(propertyCount);
 
     for (let p = 0; p < propertyCount; p += 1) {
@@ -236,6 +276,7 @@ async function generate(options) {
         className,
         target.namespace,
         target.withAttributes,
+        target.withCustomAttributes,
         propertySchemas,
       );
       const filePath = path.join(target.dtoDir, `${className}.cs`);

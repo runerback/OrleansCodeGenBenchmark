@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="Orleans.CodeGen.Benchmark.CustomGenerateSerializer.CodeGen/Orleans.CodeGen.Benchmark.CustomGenerateSerializer.CodeGen.csproj" />
+  <Project Path="Orleans.CodeGen.Benchmark.CustomGenerateSerializer/Orleans.CodeGen.Benchmark.CustomGenerateSerializer.csproj" />
   <Project Path="Orleans.CodeGen.Benchmark.GenerateSerializer/Orleans.CodeGen.Benchmark.GenerateSerializer.csproj" />
   <Project Path="Orleans.CodeGen.Benchmark.Normal/Orleans.CodeGen.Benchmark.Normal.csproj" />
 </Solution>

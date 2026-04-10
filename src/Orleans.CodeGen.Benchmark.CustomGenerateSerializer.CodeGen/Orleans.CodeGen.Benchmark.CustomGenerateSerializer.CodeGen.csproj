@@ -8,7 +8,6 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <AnalyzerLanguage>cs</AnalyzerLanguage>
     <CLSCompliant>false</CLSCompliant>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <NoPackageAnalysis>true</NoPackageAnalysis>
   </PropertyGroup>
 

@@ -110,7 +110,7 @@ internal sealed class CustomGenerateSerializerCodeGen : IIncrementalGenerator
                         .AddUsings([.. new string[]
                         {
                             model.Symbol.ContainingNamespace.ToDisplayString(),
-                            "MJUSS.Infrastructure.Core.BaseClass",
+                            "Orleans.CodeGen.Benchmark.CustomGenerateSerializer.CustomSerializers",
                             "Orleans",
                             "Orleans.Serialization.Codecs",
                             "Orleans.Serialization.Serializers",
@@ -123,9 +123,9 @@ internal sealed class CustomGenerateSerializerCodeGen : IIncrementalGenerator
                         .WithLeadingTrivia(TriviaList(
                             Trivia(NullableDirectiveTrivia(Token(SyntaxKind.EnableKeyword), isActive: true))))
                         .NormalizeWhitespace();
-                    context.AddSource($"MJOrleansCodeGen_{model.Symbol.Name}.g.cs", serializerSource.GetText(Encoding.UTF8));
+                    context.AddSource($"CustomOrleansCodeGen_{model.Symbol.Name}.g.cs", serializerSource.GetText(Encoding.UTF8));
                 }
-                var metadataName = string.Join("_", "MJMetadata", group.Key.Substring(16).Replace(".", ""));
+                var metadataName = string.Join("_", "CustomMetadata", group.Key.Substring(16).Replace(".", ""));
                 static StatementSyntax MetadataRegisterStatement(string kind, string type)
                 {
                     // config.{kind}.Add(typeof({type}));
@@ -172,7 +172,7 @@ internal sealed class CustomGenerateSerializerCodeGen : IIncrementalGenerator
     {
         public INamedTypeSymbol Symbol { get; } = symbol;
         public TypeDeclarationSyntax Syntax { get; } = syntax;
-        public string NamespaceName { get; } = string.Join(".", "MJOrleansCodeGen", symbol.ContainingAssembly.Name);
+        public string NamespaceName { get; } = string.Join(".", "CustomOrleansCodeGen", symbol.ContainingAssembly.Name);
 
         public bool Equals(CustomOrleansSerializerCodeGenModel? other)
         {
